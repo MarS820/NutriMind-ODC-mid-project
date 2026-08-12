@@ -20,16 +20,19 @@ from src.rag_pipeline import RAGPipeline
 # CHAT SESSION HELPERS
 # ============================================================
 
+# In main_app.py, update the streaming function:
+
 def _generate_answer_streaming(pipeline, question, result_container):
-    """Generates answer with streaming tokens."""
+    """Generates answer with streaming tokens - updates in real-time as tokens are generated."""
     try:
-        # Get the streaming response
         full_answer = ""
-        for token in pipeline.answer_stream(question):
-            full_answer += token
-            # Update the result container with partial answer
-            result_container["partial_answer"] = full_answer
+        for chunk in pipeline.answer_stream(question):
+            # Update with each new chunk as it arrives
+            full_answer = chunk
+            result_container["partial_answer"] = chunk
             
+            
+        
         result_container["answer"] = full_answer
     except Exception as e:
         result_container["error"] = str(e)
@@ -670,10 +673,6 @@ if st.session_state.inbody_data:
         unsafe_allow_html=True
     )
 
-    # parse_inbody() returns {section_name: ["Label: value", ...]},
-    # not a flat {key: value} dict — flatten it once here so the
-    # rest of the dashboard can look values up by label.
-
     def flatten_data(raw_data):
         rows = []
 
@@ -838,10 +837,6 @@ if st.session_state.inbody_data:
             "information extracted from your InBody report."
         )
 
-        # --------------------------------------------------
-        # Real-numbers summary card, built from parsed data
-        # --------------------------------------------------
-
         st.markdown(
             f"""<div class="metric-card">
 
@@ -860,12 +855,6 @@ InBody report.
             """,
             unsafe_allow_html=True
         )
-
-        # --------------------------------------------------
-        # Any additional extracted fields, beyond the four
-        # headline metrics already shown above, displayed as
-        # a compact real-data table.
-        # --------------------------------------------------
 
         shown_labels = {
             "Weight",
@@ -923,7 +912,7 @@ meal planning, or your next fitness step.
 
 
     # ========================================================
-    # AI COACH TAB
+    # AI COACH TAB (WITH STREAMING)
     # ========================================================
 
     with coach_tab:
@@ -938,6 +927,7 @@ meal planning, or your next fitness step.
             "or body composition."
         )
 
+        # Display existing chat messages
         for message in st.session_state.chat_messages:
 
             if message["role"] == "user":
@@ -959,13 +949,9 @@ meal planning, or your next fitness step.
                     unsafe_allow_html=True
                 )
 
-        # ========================================================
-        # STREAMING RESPONSE HANDLING
-        # ========================================================
-
+        # Streaming response handling
         if st.session_state.generating:
             
-            # Display the streaming response in real-time
             result = st.session_state.answer_result
             
             # Show partial answer if available
@@ -1011,7 +997,7 @@ meal planning, or your next fitness step.
                 st.rerun()
             
             else:
-                time.sleep(0.2)  # Faster polling for streaming
+                time.sleep(0.2)
                 st.rerun()
 
         else:
