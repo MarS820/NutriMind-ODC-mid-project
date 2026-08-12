@@ -1,0 +1,13 @@
+streamlit
+pypdf
+pandas
+openpyxl
+faiss-cpu
+sentence-transformers
+openai
+python-dotenv
+numpy
+sentence-transformers 
+faiss-cpu
+accelerate
+bitsandbytes
