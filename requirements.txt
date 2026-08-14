@@ -12,5 +12,6 @@ faiss-cpu
 accelerate
 bitsandbyteslangchain-core
 langchain
+langchain-core
 langchain-community
 langchain-groq
