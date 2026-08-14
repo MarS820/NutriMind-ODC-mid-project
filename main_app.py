@@ -4,6 +4,9 @@ import re
 import threading
 import uuid
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from src.pdf_processor import (
     load_pdf_text,
@@ -13,26 +16,25 @@ from src.pdf_processor import (
 
 from src.vector_store import VectorStore
 from src.llm import load_llm
-from src.rag_pipeline import RAGPipeline
+ # kept for reference / rollback, unused below
+from src.langchain_pipeline import LangChainRAGPipeline
+from src.llm_factory import using_groq
 
 
 # ============================================================
 # CHAT SESSION HELPERS
 # ============================================================
 
-# In main_app.py, update the streaming function:
-
 def _generate_answer_streaming(pipeline, question, result_container):
-    """Generates answer with streaming tokens - updates in real-time as tokens are generated."""
+    """Generates answer with streaming tokens."""
     try:
+        # Get the streaming response
         full_answer = ""
-        for chunk in pipeline.answer_stream(question):
-            # Update with each new chunk as it arrives
-            full_answer = chunk
-            result_container["partial_answer"] = chunk
+        for token in pipeline.answer_stream(question):
+            full_answer += token
+            # Update the result container with partial answer
+            result_container["partial_answer"] = full_answer
             
-            
-        
         result_container["answer"] = full_answer
     except Exception as e:
         result_container["error"] = str(e)
@@ -520,7 +522,7 @@ with st.sidebar:
             if st.button(
                 "🆕 New Chat",
                 disabled=st.session_state.generating,
-                use_container_width=True
+                width="stretch"
             ):
 
                 _archive_current_chat()
@@ -536,7 +538,7 @@ with st.sidebar:
             if st.button(
                 "🛑 Stop Chat",
                 disabled=not st.session_state.generating,
-                use_container_width=True
+                width="stretch"
             ):
 
                 st.session_state.stop_requested = True
@@ -567,7 +569,7 @@ with st.sidebar:
                     label,
                     key=f"history_{session['id']}",
                     disabled=st.session_state.generating,
-                    use_container_width=True,
+                    width="stretch",
                     help=session["timestamp"]
                 ):
 
@@ -642,9 +644,12 @@ if uploaded_file is not None:
                 force_rebuild=True
             )
 
-            tokenizer, model = load_llm()
+            if using_groq():
+                tokenizer, model = None, None
+            else:
+                tokenizer, model = load_llm()
 
-            pipeline = RAGPipeline(
+            pipeline = LangChainRAGPipeline(
                 vector_store,
                 tokenizer,
                 model,
@@ -672,6 +677,10 @@ if st.session_state.inbody_data:
         '<div class="section-title">📊 Body Composition Overview</div>',
         unsafe_allow_html=True
     )
+
+    # parse_inbody() returns {section_name: ["Label: value", ...]},
+    # not a flat {key: value} dict — flatten it once here so the
+    # rest of the dashboard can look values up by label.
 
     def flatten_data(raw_data):
         rows = []
@@ -837,6 +846,10 @@ if st.session_state.inbody_data:
             "information extracted from your InBody report."
         )
 
+        # --------------------------------------------------
+        # Real-numbers summary card, built from parsed data
+        # --------------------------------------------------
+
         st.markdown(
             f"""<div class="metric-card">
 
@@ -855,6 +868,12 @@ InBody report.
             """,
             unsafe_allow_html=True
         )
+
+        # --------------------------------------------------
+        # Any additional extracted fields, beyond the four
+        # headline metrics already shown above, displayed as
+        # a compact real-data table.
+        # --------------------------------------------------
 
         shown_labels = {
             "Weight",
@@ -889,7 +908,7 @@ InBody report.
 
             st.dataframe(
                 extra_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 
@@ -912,7 +931,7 @@ meal planning, or your next fitness step.
 
 
     # ========================================================
-    # AI COACH TAB (WITH STREAMING)
+    # AI COACH TAB
     # ========================================================
 
     with coach_tab:
@@ -927,7 +946,11 @@ meal planning, or your next fitness step.
             "or body composition."
         )
 
-        # Display existing chat messages
+        if using_groq():
+            st.caption("⚡ Fast mode: answers are generated via Groq's cloud API (your InBody data is sent to Groq's servers).")
+        else:
+            st.caption("🔒 Local mode: answers are generated on this machine (nothing leaves your computer). Slower, but private. Set GROQ_API_KEY in .env for faster responses.")
+
         for message in st.session_state.chat_messages:
 
             if message["role"] == "user":
@@ -949,9 +972,13 @@ meal planning, or your next fitness step.
                     unsafe_allow_html=True
                 )
 
-        # Streaming response handling
+        # ========================================================
+        # STREAMING RESPONSE HANDLING
+        # ========================================================
+
         if st.session_state.generating:
             
+            # Display the streaming response in real-time
             result = st.session_state.answer_result
             
             # Show partial answer if available
@@ -997,7 +1024,7 @@ meal planning, or your next fitness step.
                 st.rerun()
             
             else:
-                time.sleep(0.2)
+                time.sleep(0.2)  # Faster polling for streaming
                 st.rerun()
 
         else:
@@ -1076,7 +1103,7 @@ meal planning, or your next fitness step.
 
             st.dataframe(
                 report_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 

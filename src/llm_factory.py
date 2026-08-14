@@ -18,7 +18,6 @@ from typing import Any, Optional
 
 import streamlit as st
 
-
 def get_groq_llm(streaming: bool = True, temperature: float = 0.3) -> Optional[Any]:
     """Returns a LangChain-compatible ChatGroq instance if a Groq API key
     is configured, otherwise None. Never raises -- callers should fall
