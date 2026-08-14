@@ -10,4 +10,7 @@ numpy
 sentence-transformers 
 faiss-cpu
 accelerate
-bitsandbytes
+bitsandbyteslangchain-core
+langchain
+langchain-community
+langchain-groq
